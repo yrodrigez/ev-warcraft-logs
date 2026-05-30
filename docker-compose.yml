@@ -8,7 +8,7 @@ services:
       WCL_CLIENT_SECRET: ${WCL_CLIENT_SECRET:-}
       WCL_SERVER_REGION: ${WCL_SERVER_REGION:-EU}
     ports:
-      - "3000:3000"
+      - "${API_PORT:-3000}:3000"
     depends_on:
       postgres:
         condition: service_healthy
