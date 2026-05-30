@@ -1,0 +1,33 @@
+services:
+  api:
+    build: .
+    environment:
+      PORT: ${PORT:-3000}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-warcraft_logs}
+      WCL_CLIENT_ID: ${WCL_CLIENT_ID:-}
+      WCL_CLIENT_SECRET: ${WCL_CLIENT_SECRET:-}
+      WCL_SERVER_REGION: ${WCL_SERVER_REGION:-EU}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-warcraft_logs}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-postgres} -d $${POSTGRES_DB:-warcraft_logs}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
