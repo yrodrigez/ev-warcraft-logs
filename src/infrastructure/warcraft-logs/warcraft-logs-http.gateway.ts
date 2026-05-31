@@ -48,6 +48,8 @@ export class WarcraftLogsHttpGateway implements WarcraftLogsGateway {
     const token = await this.tokenProvider.getToken();
     const url = `https://${product}.warcraftlogs.com/api/v2/client`;
 
+    console.log(`Fetching character logs for ${input.characterName} on realm ${input.realmSlug} from Warcraft Logs API...`);
+
     const logs = await this.rateLimiter.run(async () => {
       const response = await fetch(url, {
         method: "POST",
@@ -58,8 +60,8 @@ export class WarcraftLogsHttpGateway implements WarcraftLogsGateway {
         body: JSON.stringify({
           query: GET_CHARACTER_PARSES_QUERY,
           variables: {
-            name: input.characterName,
-            serverSlug: input.realmSlug,
+            name: decodeURIComponent(input.characterName),
+            serverSlug: decodeURIComponent(input.realmSlug),
             serverRegion: this.serverRegion,
           },
         }),

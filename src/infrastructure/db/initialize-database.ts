@@ -10,6 +10,5 @@ export async function initializeDatabase(postgresPool: PostgresPool): Promise<vo
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (realm_slug, character_name)
     );
-    TRUNCATE TABLE "character-logs";
   `);
 }
