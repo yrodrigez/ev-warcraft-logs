@@ -29,11 +29,14 @@ query GetCharacterParses(
                     compactName
                 }
             }
-            zoneRankings
+            hpsRankings: zoneRankings(metric: hps)
+            dpsRankings: zoneRankings(metric: dps)
         }
     }
 }
 `;
+
+const HEALER_SPEC_PATTERN = /(^|\W)(restoration|holy|heal)(\W|$)/;
 
 export class WarcraftLogsHttpGateway implements WarcraftLogsGateway {
   public constructor(
@@ -77,13 +80,89 @@ export class WarcraftLogsHttpGateway implements WarcraftLogsGateway {
     });
 
     const character = this.getCharacter(logs);
-    const zoneRankings = this.getObject(character?.zoneRankings);
+    const hpsRankings = this.getObject(character?.hpsRankings);
+    const dpsRankings = this.getObject(character?.dpsRankings);
+    const selectedRankings = this.selectRankings(hpsRankings, dpsRankings);
+    const normalizedLogs = this.normalizeLogs(logs, selectedRankings);
 
     return {
       characterId: typeof character?.id === "number" ? character.id : null,
-      logs,
-      hasBestPerformanceAverage: zoneRankings?.bestPerformanceAverage !== undefined,
+      logs: normalizedLogs,
+      hasBestPerformanceAverage: selectedRankings?.bestPerformanceAverage !== undefined,
     };
+  }
+
+  private selectRankings(
+    hpsRankings: Record<string, unknown> | null,
+    dpsRankings: Record<string, unknown> | null,
+  ): Record<string, unknown> | null {
+    if (this.hasHealingSpec(hpsRankings) || this.hasHealingSpec(dpsRankings)) {
+      return hpsRankings;
+    }
+
+    return dpsRankings;
+  }
+
+  private normalizeLogs(logs: unknown, selectedRankings: Record<string, unknown> | null): unknown {
+    const data = this.getObject(logs);
+    const characterData = this.getObject(data?.characterData);
+    const character = this.getObject(characterData?.character);
+
+    if (!data || !characterData || !character) {
+      return logs;
+    }
+
+    const { hpsRankings: _hpsRankings, dpsRankings: _dpsRankings, ...characterWithoutMetricRankings } = character;
+
+    return {
+      ...data,
+      characterData: {
+        ...characterData,
+        character: {
+          ...characterWithoutMetricRankings,
+          zoneRankings: selectedRankings,
+        },
+      },
+    };
+  }
+
+  private hasHealingSpec(rankings: Record<string, unknown> | null): boolean {
+    if (!rankings) {
+      return false;
+    }
+
+    return this.getRankingEntries(rankings).some((entry) => {
+      const spec = this.getSpec(entry);
+      return spec !== null && HEALER_SPEC_PATTERN.test(spec.toLowerCase());
+    });
+  }
+
+  private getRankingEntries(rankings: Record<string, unknown>): Record<string, unknown>[] {
+    const entries: Record<string, unknown>[] = [];
+    const rankingEntries = this.getArray(rankings.rankings);
+    const allStarEntries = this.getArray(rankings.allStars);
+
+    for (const entry of [...rankingEntries, ...allStarEntries]) {
+      const rankingEntry = this.getObject(entry);
+
+      if (rankingEntry) {
+        entries.push(rankingEntry);
+      }
+    }
+
+    return entries;
+  }
+
+  private getSpec(entry: Record<string, unknown>): string | null {
+    if (typeof entry.spec === "string") {
+      return entry.spec;
+    }
+
+    if (typeof entry.bestSpec === "string") {
+      return entry.bestSpec;
+    }
+
+    return null;
   }
 
   private getCharacter(logs: unknown): Record<string, unknown> | null {
@@ -98,5 +177,9 @@ export class WarcraftLogsHttpGateway implements WarcraftLogsGateway {
     }
 
     return value as Record<string, unknown>;
+  }
+
+  private getArray(value: unknown): unknown[] {
+    return Array.isArray(value) ? value : [];
   }
 }
